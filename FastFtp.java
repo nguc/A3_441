@@ -15,6 +15,7 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.net.UnknownHostException;
+import java.util.Timer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -29,6 +30,7 @@ public class FastFtp {
 	String serverName;
 	String PATHNAME = System.getProperty("user.dir") + "\\";
 	String hostname; // Chi-Desktop @  home
+	Timer timer;
 
 	/**
      * Constructor to initialize the program 
@@ -45,21 +47,10 @@ public class FastFtp {
 		    addr = InetAddress.getLocalHost();
 		    this.hostname = addr.getHostName();
 		}
-		catch (UnknownHostException ex)
-		{
-		    System.out.println("Hostname can not be resolved");
-		}
+		catch (UnknownHostException ex) { System.out.println("Hostname can not be resolved"); }
 
 			this.windowSize = windowSize;
-			this.rtoTimer = rtoTimer;
-			
-			/*try
-			{
-				InetAddress  ip = InetAddress.getLocalHost();
-				this.serverName = ip.getHostName();
-				System.out.println("server name: " + serverName);
-			}catch (UnknownHostException e) { e.printStackTrace(); }
-			*/
+			this.rtoTimer = rtoTimer;		
 	}
 	
 
@@ -99,6 +90,7 @@ public class FastFtp {
 				{
 					System.out.print((char) payload[i]);
 				}
+				fIn.close();
 			} 
 			catch (FileNotFoundException e) { System.out.println(e.getMessage()); }
 			catch (IOException e) { System.out.println(e.getMessage()); }
@@ -108,6 +100,9 @@ public class FastFtp {
 			DataInputStream dataIn = new DataInputStream(tcpSocket.getInputStream());
 			try
 			{
+				// Create a new timer
+				timer = new Timer(true);
+				timer.schedule(new TimeoutHnadler(), rtoTimer);
 				// Send filename, file length, and local UDP port to server over TCP
 				dataOut.writeUTF(fileName);
 				dataOut.flush();
@@ -141,18 +136,21 @@ public class FastFtp {
 					System.out.println(new String(replyPacket.getData()));
 					
 					
+					dataOut.close();
+					dataIn.close();
+					
 					udpSocket.close();
 					tcpSocket.close();
 					
-				} catch (Exception e) {LOGGER.log( Level.SEVERE, e.toString(), e ); }
+				} catch (Exception e) {LOGGER.log( Level.FINE, e.toString(), e ); }
 				
-			}catch(IOException e) { LOGGER.log( Level.SEVERE, e.toString(), e); }
+			}catch(IOException e) { LOGGER.log( Level.FINE, e.toString(), e); }
 			
 			
 			
 			
 		}
-		catch (Exception e) { LOGGER.log( Level.SEVERE, e.toString(), e); }
+		catch (Exception e) { LOGGER.log( Level.FINE, e.toString(), e); }
 		
 	}
 	
