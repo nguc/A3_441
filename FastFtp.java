@@ -4,18 +4,25 @@
  *
  */
 
-import java.io.DataInputStream;
+import java.io.DataInputStream; 
 import java.io.DataOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.net.UnknownHostException;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import cpsc441.a3.shared.*;
 
 public class FastFtp {
+	
+	private static final Logger LOGGER = Logger.getLogger( FastFtp.class.getName() );
 	
 	int windowSize;
 	int rtoTimer;
@@ -76,11 +83,26 @@ public class FastFtp {
 			Socket tcpSocket = new Socket (serverName, serverPort);
 			DatagramSocket udpSocket = new DatagramSocket ();
 			//System.out.println("sockets opened");
-			
 			File file = new File(PATHNAME + fileName);
+			
+			
 			//System.out.println("File: " + PATHNAME +fileName);
 			long fileLength = file.length();
 			//System.out.println("file length: " + fileLength);
+			byte[] payload = new byte[(int) file.length()];
+			try
+			{
+				FileInputStream fIn = new FileInputStream(file);
+				fIn.read(payload);
+				
+				for (int i = 0; i < payload.length; i++)
+				{
+					System.out.print((char) payload[i]);
+				}
+			} 
+			catch (FileNotFoundException e) { System.out.println(e.getMessage()); }
+			catch (IOException e) { System.out.println(e.getMessage()); }
+			
 			
 			DataOutputStream dataOut = new DataOutputStream(tcpSocket.getOutputStream());
 			DataInputStream dataIn = new DataInputStream(tcpSocket.getInputStream());
@@ -98,16 +120,39 @@ public class FastFtp {
 				
 				// Get server UDP port number over TCP
 				int serverUdpPort = dataIn.readInt();
-				//System.out.println("server UPD port #: " + serverUdpPort);
+				InetAddress serverIP = InetAddress.getByName("localhost");
+				//System.out.println("\nserver Ip: " + serverIP);
 				
-			}catch(IOException e) { System.out.println("Error writing to stream " + e.getMessage()); }
+				// send packet thread
+				int seqnum = 0;
+				try
+				{
+					Segment segment = new Segment(seqnum, payload);
+					DatagramPacket sendPacket = new DatagramPacket(segment.getBytes(), segment.getBytes().length, serverIP, serverUdpPort);
+					udpSocket.send(sendPacket);
+					System.out.println("Sent packet");
+					
+					// Recieve packet back
+					byte[] buffer = new byte[8*1024];
+					DatagramPacket replyPacket = new DatagramPacket (buffer, buffer.length);
+					udpSocket.receive(replyPacket);
+					Segment ackseg = new Segment(buffer);
+					int acknum = ackseg.getSeqNum();
+					System.out.println(new String(replyPacket.getData()));
+					
+					
+					udpSocket.close();
+					tcpSocket.close();
+					
+				} catch (Exception e) {LOGGER.log( Level.SEVERE, e.toString(), e ); }
+				
+			}catch(IOException e) { LOGGER.log( Level.SEVERE, e.toString(), e); }
 			
 			
 			
-			tcpSocket.close();
-			udpSocket.close();
+			
 		}
-		catch (Exception e) { System.out.println("Error opening the socket: " + e.getMessage() + e.getStackTrace());}
+		catch (Exception e) { LOGGER.log( Level.SEVERE, e.toString(), e); }
 		
 	}
 	
