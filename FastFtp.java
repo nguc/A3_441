@@ -1,10 +1,10 @@
 
 /**
- * FastFtp Class
+ * FastFtp Class 
  *
  */
 
-import java.io.DataInputStream; 
+import java.io.DataInputStream;  
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -18,19 +18,24 @@ import java.net.UnknownHostException;
 import java.util.Timer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
 import cpsc441.a3.shared.*;
 
-public class FastFtp {
+public class FastFtp implements Runnable{
 	
 	private static final Logger LOGGER = Logger.getLogger( FastFtp.class.getName() );
 	
-	int windowSize;
-	int rtoTimer;
-	String serverName;
 	String PATHNAME = System.getProperty("user.dir") + "\\";
 	String hostname; // Chi-Desktop @  home
+	String serverName;
+	Socket tcpSocket;
+	DatagramSocket udpSocket;
+	InetAddress serverIP;
+	int serverUdpPort;
 	Timer timer;
+	int rtoTimer;
+	File file;
+	TxQueue queue;
+	
 
 	/**
      * Constructor to initialize the program 
@@ -49,7 +54,7 @@ public class FastFtp {
 		}
 		catch (UnknownHostException ex) { System.out.println("Hostname can not be resolved"); }
 
-			this.windowSize = windowSize;
+			queue = new TxQueue(windowSize);
 			this.rtoTimer = rtoTimer;		
 	}
 	
@@ -71,38 +76,18 @@ public class FastFtp {
 		try 
 		{
 			// Open a TCP and UDP connection
-			Socket tcpSocket = new Socket (serverName, serverPort);
-			DatagramSocket udpSocket = new DatagramSocket ();
-			//System.out.println("sockets opened");
-			File file = new File(PATHNAME + fileName);
-			
-			
+			tcpSocket = new Socket (serverName, serverPort);
+			udpSocket = new DatagramSocket ();
+			file = new File(PATHNAME + fileName);
 			//System.out.println("File: " + PATHNAME +fileName);
 			long fileLength = file.length();
 			//System.out.println("file length: " + fileLength);
-			byte[] payload = new byte[(int) file.length()];
-			try
-			{
-				FileInputStream fIn = new FileInputStream(file);
-				fIn.read(payload);
-				
-				for (int i = 0; i < payload.length; i++)
-				{
-					System.out.print((char) payload[i]);
-				}
-				fIn.close();
-			} 
-			catch (FileNotFoundException e) { System.out.println(e.getMessage()); }
-			catch (IOException e) { System.out.println(e.getMessage()); }
-			
 			
 			DataOutputStream dataOut = new DataOutputStream(tcpSocket.getOutputStream());
 			DataInputStream dataIn = new DataInputStream(tcpSocket.getInputStream());
+			
 			try
 			{
-				// Create a new timer
-				timer = new Timer(true);
-				timer.schedule(new TimeoutHnadler(), rtoTimer);
 				// Send filename, file length, and local UDP port to server over TCP
 				dataOut.writeUTF(fileName);
 				dataOut.flush();
@@ -114,46 +99,80 @@ public class FastFtp {
 				dataOut.flush();
 				
 				// Get server UDP port number over TCP
-				int serverUdpPort = dataIn.readInt();
-				InetAddress serverIP = InetAddress.getByName("localhost");
-				//System.out.println("\nserver Ip: " + serverIP);
+				serverUdpPort = dataIn.readInt();
+				serverIP = InetAddress.getByName("localhost");
 				
-				// send packet thread
-				int seqnum = 0;
-				try
-				{
-					Segment segment = new Segment(seqnum, payload);
-					DatagramPacket sendPacket = new DatagramPacket(segment.getBytes(), segment.getBytes().length, serverIP, serverUdpPort);
-					udpSocket.send(sendPacket);
-					System.out.println("Sent packet");
-					
-					// Recieve packet back
-					byte[] buffer = new byte[8*1024];
-					DatagramPacket replyPacket = new DatagramPacket (buffer, buffer.length);
-					udpSocket.receive(replyPacket);
-					Segment ackseg = new Segment(buffer);
-					int acknum = ackseg.getSeqNum();
-					System.out.println(new String(replyPacket.getData()));
-					
-					
-					dataOut.close();
-					dataIn.close();
-					
-					udpSocket.close();
-					tcpSocket.close();
-					
-				} catch (Exception e) {LOGGER.log( Level.FINE, e.toString(), e ); }
+				Thread receiver = new Thread (new ACK_receiver(udpSocket, queue));
+				Thread sender = new Thread (this);
 				
-			}catch(IOException e) { LOGGER.log( Level.FINE, e.toString(), e); }
+				receiver.start();
+				sender.start();	
+				
+				dataOut.close();
+				dataIn.close();
+				
+				
+				
 			
-			
-			
-			
-		}
-		catch (Exception e) { LOGGER.log( Level.FINE, e.toString(), e); }
-		
+			} catch (Exception e) { LOGGER.log( Level.FINE, e.toString(), e); }
+		} 
+		catch (FileNotFoundException e) {  System.out.println(e.getMessage());  } 
+		catch(IOException e) { LOGGER.log( Level.FINE, e.toString(), e); }		
 	}
+
 	
+@Override
+public void run() {
+	// TODO Auto-generated method stub
+	// send packet thread
+	int seqnum = 0;
+	
+	try
+	{
+		FileInputStream fIn = new FileInputStream(file);
+		int c = 0;
+		byte[] payload = new byte[1000];
+		// make segments, send segment to queue and send segment to server
+		while ((c = fIn.read(payload)) > 0) {
+			
+				
+			if (queue.isFull()) {
+				//wait...
+			}
+			
+			else if (queue.isEmpty()) {
+				timer = new Timer(true);
+				timer.schedule(new TimeoutHandler(queue), rtoTimer);
+			}
+			
+			else
+			{
+				Segment segment = new Segment(seqnum, payload);
+				DatagramPacket sendPacket = new DatagramPacket(segment.getBytes(), segment.getBytes().length, serverIP, serverUdpPort);
+				queue.add(segment);
+				udpSocket.send(sendPacket);
+				System.out.println("Sent packet");
+			}
+			
+			
+			
+			seqnum ++;
+		}
+		
+		
+		
+		
+		
+		
+		
+		
+		fIn.close();
+		udpSocket.close();
+		tcpSocket.close();
+		
+	} catch (Exception e) {LOGGER.log( Level.FINE, e.toString(), e ); }
+	
+}
 	
     /**
      * A simple test driver
@@ -182,4 +201,7 @@ public class FastFtp {
 		ftp.send(serverName, serverPort, fileName);
 		System.out.println("file transfer completed.");
 	}
+
+
+	
 }

@@ -49,3 +49,5 @@ Temporary Items
 /Segment.class
 /Tester.class
 /TxQueue.class
+/TimeoutHandler.class
+/ACK_receiver.class
