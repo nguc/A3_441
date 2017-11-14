@@ -4,7 +4,7 @@
  *
  */
 
-import java.io.DataInputStream;  
+import java.io.DataInputStream;   
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -14,6 +14,7 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.Socket;
+import java.net.SocketAddress;
 import java.net.UnknownHostException;
 import java.util.Timer;
 import java.util.logging.Level;
@@ -51,6 +52,7 @@ public class FastFtp implements Runnable{
 		    InetAddress addr;
 		    addr = InetAddress.getLocalHost();
 		    this.hostname = addr.getHostName();
+		    System.out.println("hostname: " + hostname);
 		}
 		catch (UnknownHostException ex) { System.out.println("Hostname can not be resolved"); }
 
@@ -78,6 +80,7 @@ public class FastFtp implements Runnable{
 			// Open a TCP and UDP connection
 			this.tcpSocket = new Socket (serverName, serverPort);
 			this.udpSocket = new DatagramSocket ();
+			
 			file = new File(PATHNAME + fileName);
 			//System.out.println("File: " + PATHNAME +fileName);
 			long fileLength = file.length();
@@ -102,9 +105,11 @@ public class FastFtp implements Runnable{
 				// Get server UDP port number over TCP
 				serverUdpPort = dataIn.readInt();
 				serverIP = InetAddress.getByName("localhost");
-				
-				
-				Thread receiver = new Thread (new ACK_receiver(serverUdpPort, queue));
+				udpSocket.connect(serverIP,serverUdpPort);
+				SocketAddress serverAddr = udpSocket.getRemoteSocketAddress();
+				System.out.println("remote socket addr: " + serverAddr);
+					
+				Thread receiver = new Thread (new ACK_receiver(serverIP, serverUdpPort,  queue));
 				Thread sender = new Thread (this);
 				
 				receiver.start();
