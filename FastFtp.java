@@ -76,8 +76,8 @@ public class FastFtp implements Runnable{
 		try 
 		{
 			// Open a TCP and UDP connection
-			tcpSocket = new Socket (serverName, serverPort);
-			udpSocket = new DatagramSocket ();
+			this.tcpSocket = new Socket (serverName, serverPort);
+			this.udpSocket = new DatagramSocket ();
 			file = new File(PATHNAME + fileName);
 			//System.out.println("File: " + PATHNAME +fileName);
 			long fileLength = file.length();
@@ -98,11 +98,13 @@ public class FastFtp implements Runnable{
 				dataOut.writeInt(udpSocket.getLocalPort());
 				dataOut.flush();
 				
+				System.out.println("Done handshake");
 				// Get server UDP port number over TCP
 				serverUdpPort = dataIn.readInt();
 				serverIP = InetAddress.getByName("localhost");
 				
-				Thread receiver = new Thread (new ACK_receiver(udpSocket, queue));
+				
+				Thread receiver = new Thread (new ACK_receiver(serverUdpPort, queue));
 				Thread sender = new Thread (this);
 				
 				receiver.start();
@@ -133,38 +135,12 @@ public void run() {
 		int c = 0;
 		byte[] payload = new byte[1000];
 		// make segments, send segment to queue and send segment to server
-		while ((c = fIn.read(payload)) > 0) {
-			
-				
-			if (queue.isFull()) {
-				//wait...
-			}
-			
-			else if (queue.isEmpty()) {
-				timer = new Timer(true);
-				timer.schedule(new TimeoutHandler(queue), rtoTimer);
-			}
-			
-			else
-			{
-				Segment segment = new Segment(seqnum, payload);
-				DatagramPacket sendPacket = new DatagramPacket(segment.getBytes(), segment.getBytes().length, serverIP, serverUdpPort);
-				queue.add(segment);
-				udpSocket.send(sendPacket);
-				System.out.println("Sent packet");
-			}
-			
-			
-			
+		while ((c = fIn.read(payload)) > 0) 
+		{
+			Segment segment = new Segment(seqnum, payload);
+			processSend(segment);
 			seqnum ++;
 		}
-		
-		
-		
-		
-		
-		
-		
 		
 		fIn.close();
 		udpSocket.close();
@@ -174,6 +150,44 @@ public void run() {
 	
 }
 	
+
+
+public synchronized void processSend(Segment seg) {
+	// send seg to the UDP socket
+	// add seg to the transmission queue
+	// if this is the first segment in transmission queue, start the timer
+	try
+	{
+		
+			DatagramPacket sendPacket = new DatagramPacket(seg.getBytes(), seg.getBytes().length, serverIP, serverUdpPort);
+			if (queue.isFull()) 
+			{
+	
+			}
+			
+			if (queue.isEmpty()) {
+				timer = new Timer(true);
+				timer.schedule(new TimeoutHandler(queue), rtoTimer);
+			}
+			
+			else
+			{
+				queue.add(seg);
+				
+				Segment[] window = queue.toArray();
+				for (int i =0; i < window.length; i++)
+				{
+					System.out.println("Seq Num: " + window[i].getSeqNum() );
+					System.out.println("Payload: " + window[i].getPayload());
+				}
+				
+				udpSocket.send(sendPacket);
+				System.out.println("Sent packet");
+			}		
+	} catch (Exception e) {LOGGER.log( Level.FINE, e.toString(), e ); }
+}
+
+
     /**
      * A simple test driver
      * 

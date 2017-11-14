@@ -8,12 +8,15 @@ import cpsc441.a3.shared.*;
 public class ACK_receiver implements Runnable {
 	
 	private static final Logger LOGGER = Logger.getLogger( FastFtp.class.getName() );
-	DatagramSocket udpSocket;
+	DatagramSocket udp;
 	TxQueue queue;
+	Boolean done = false;
 	
-	public ACK_receiver (DatagramSocket socket, TxQueue queue) {
-		this.udpSocket = socket; 
-		this.queue = queue;
+	public ACK_receiver (int port, TxQueue queue) {
+		try {
+			this.udp = new DatagramSocket(port); 
+			this.queue = queue;
+		} catch (Exception e) {  LOGGER.log( Level.FINE, e.toString(), e);  }
 	}
 	
 	@Override
@@ -23,20 +26,46 @@ public class ACK_receiver implements Runnable {
 		try 
 		{
 			System.out.println("Reply: ");
-			byte[] buffer = new byte[8*1024];
-			DatagramPacket replyPacket = new DatagramPacket (buffer, buffer.length);
-			udpSocket.receive(replyPacket);
-			Segment ackseg = new Segment(buffer);
-			int acknum = ackseg.getSeqNum();
-			System.out.print(new String(replyPacket.getData()));
-			
-			if (acknum > queue.element().getSeqNum()) {
-				queue.remove();
+			while(!done) {
+				byte[] buffer = new byte[1000];
+				DatagramPacket replyPacket = new DatagramPacket (buffer, buffer.length);
+				
+				udp.receive(replyPacket);
+				Segment ackseg = new Segment(buffer);
+				System.out.print(new String(replyPacket.getData()));
 			}
-			
 		} catch(Exception e) {  LOGGER.log( Level.FINE, e.toString(), e); }
 		
+	}
+	
+	public synchronized void processACK (Segment ack) {
+		int acknum = ack.getSeqNum();
+		System.out.println("ack: " + acknum);
 		
+		try {
+			// if ack in window 
+			if (acknum > queue.element().getSeqNum()) 
+			{
+				//cancel timer
+				// remove all segments that are acked by this ack 
+				// if there are any pending segments in queue, start timer
+				queue.remove();
+				
+				if (!queue.isFull()) 
+				{
+					
+				}
+
+			}
+			// if ack not in window do nothing
+			
+			
+			
+			
+				
+			
+		} catch (Exception e) { LOGGER.log( Level.FINE, e.toString(), e);  }
+
 	}
 
 }
