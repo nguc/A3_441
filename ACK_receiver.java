@@ -14,20 +14,20 @@ public class ACK_receiver implements Runnable {
 	FastFtp ftp;
 	Boolean running = false;
 	
-	public ACK_receiver (FastFtp fftp, InetAddress ip, int port, boolean status) {
+	//public ACK_receiver (FastFtp fftp, DatagramSocket socket, InetAddress serverIP, int serverPort, boolean status) {
+	public ACK_receiver (FastFtp fftp, DatagramSocket socket, boolean status) {
 		this.ftp = fftp;
+		this.udpSocket = socket;
 		this.running = status;
-		try 
-		{
-			udpSocket = new DatagramSocket();
-			udpSocket.connect(ip, port);
-			System.out.println("ack socket " + udpSocket.isConnected());
-		} catch (Exception e) { LOGGER.log( Level.FINE, e.toString(), e); }
+		//udpSocket.connect(serverIP, serverPort);
+		System.out.println("ack udp socket has port num:  " + udpSocket.getPort());
+		System.out.println("ack udp socket is connected:  " + udpSocket.isConnected());
 	}
 	
 	
 	@Override
 	public void run() {	
+		System.out.println("reciever started");
 		// Receive packet back
 			while(this.running) 
 			{

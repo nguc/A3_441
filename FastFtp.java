@@ -26,16 +26,19 @@ public class FastFtp{
 	private static final Logger LOGGER = Logger.getLogger( FastFtp.class.getName() );
 	
 	String PATHNAME = System.getProperty("user.dir") + "\\";
-	String hostname; // Chi-Desktop @  home
+	int rtoTimer;
+	int windowSize;
+	String hostname; // localhost
 	String serverName;
+	int serverUdpPort;
 	Socket tcpSocket;
 	DatagramSocket clientUDP;
 	InetAddress localAddress;
-	int serverUdpPort;
-	int rtoTimer;
-	int windowSize;
-	Timer timer;
+	DataOutputStream dataOut;
+	DataInputStream dataIn;
+	FileInputStream fIn;
 	File file;
+	Timer timer;	
 	TxQueue queue;
 	
 
@@ -67,13 +70,12 @@ public class FastFtp{
      */
 	public void send(String serverName, int serverPort, String fileName) {
 		// to be completed
-		
+	try
+	{
 		try 
 		{
 			// Open a TCP and UDP connection
-			this.tcpSocket = new Socket (serverName, serverPort);
-			
-			
+			this.tcpSocket = new Socket (serverName, serverPort);	
 			this.file = new File(PATHNAME + fileName);			
 			long fileLength = file.length();
 			
@@ -84,99 +86,98 @@ public class FastFtp{
 				return;
 			}
 			else {
+			int localPortNum = tcpSocket.getLocalPort();
+			//System.out.println("The local port numb is " + localPortNum);
+			//this.clientUDP = new DatagramSocket(localPortNum);
+			this.clientUDP = new DatagramSocket();
+			System.out.println("client udp socket has port num:  " + clientUDP.getPort());
 			
-				this.clientUDP = new DatagramSocket();
-				
-				DataOutputStream dataOut = new DataOutputStream(tcpSocket.getOutputStream());
-				DataInputStream dataIn = new DataInputStream(tcpSocket.getInputStream());
-				
-				try
+			dataOut = new DataOutputStream(tcpSocket.getOutputStream());
+			dataIn = new DataInputStream(tcpSocket.getInputStream());
+			
+			// Send filename, file length, and local UDP port to server over TCP
+			dataOut.writeUTF(fileName);
+			dataOut.flush();
+			
+			dataOut.writeLong(fileLength);
+			dataOut.flush();
+			
+			dataOut.writeInt(clientUDP.getLocalPort());
+			dataOut.flush();			
+			System.out.println("Done handshake");
+			
+			// Get server UDP port number over TCP
+			serverUdpPort = dataIn.readInt();
+			InetAddress serverIP = InetAddress.getByName(serverName);		
+			clientUDP.connect(serverIP,serverUdpPort);
+			
+			System.out.println("client udp socket " + clientUDP.isConnected());
+			System.out.println("client udp socket has port num:  " + clientUDP.getPort());
+			//int localPortNum = tcpSocket.getLocalPort();
+			//clientUDP= new DatagramSocket(serverUdpPort);
+			
+			// start the receiver thread
+			ACK_receiver ar = new ACK_receiver(this,clientUDP, true);
+			Thread receiver = new Thread(ar);
+			receiver.start();
+			
+			// make segments, send segment to queue and send segment to server	
+			fIn = new FileInputStream(this.file);
+			byte[] bytes = new byte[Segment.MAX_PAYLOAD_SIZE];
+			Segment segment = null;
+			int seqnum = 0;
+			int read;
+			
+			while ((read = fIn.read(bytes)) != -1) 
+			{	
+				System.out.println("Reading file");
+				if (read < Segment.MAX_PAYLOAD_SIZE)
 				{
-					// Send filename, file length, and local UDP port to server over TCP
-					dataOut.writeUTF(fileName);
-					dataOut.flush();
-					
-					dataOut.writeLong(fileLength);
-					dataOut.flush();
-					
-					dataOut.writeInt(clientUDP.getLocalPort());
-					dataOut.flush();			
-					System.out.println("Done handshake");
-					
-					// Get server UDP port number over TCP
-					serverUdpPort = dataIn.readInt();
-					InetAddress serverIP = InetAddress.getByName(serverName);		
-					clientUDP.connect(serverIP,serverUdpPort);
-					System.out.println("client udp socket " + clientUDP.isConnected());
-					//int localPortNum = tcpSocket.getLocalPort();
-					//clientUDP= new DatagramSocket(serverUdpPort);
-					
-					// start the receiver thread
-					ACK_receiver ar = new ACK_receiver(this, serverIP, serverUdpPort, true);
-					Thread receiver = new Thread(ar);
-					receiver.start();
-					
-					// make segments, send segment to queue and send segment to server	
-					FileInputStream fIn = new FileInputStream(file);
-					byte[] bytes = new byte[Segment.MAX_PAYLOAD_SIZE];
-					Segment segment = null;
-					int seqnum = 0;
-					int read;
-					
-					while ((read = fIn.read(bytes)) != -1) 
-					{	
-						System.out.println("Reading file");
-						if (read < Segment.MAX_PAYLOAD_SIZE)
-						{
-							byte[] payload = new byte[read];
-							System.arraycopy(bytes, 0, payload, 0, read);		
-							segment = new Segment(seqnum, payload);
-						}
-						else 
-							segment = new Segment(seqnum, bytes);
+					byte[] payload = new byte[read];
+					System.arraycopy(bytes, 0, payload, 0, read);		
+					segment = new Segment(seqnum, payload);
+				}
+				else 
+					segment = new Segment(seqnum, bytes);
+				
+				// if queue is full then wait
+				while (queue.isFull()) 
+				{
+					//System.out.println("queue full");
+					Thread.yield();
+				}
+				
+				this.processSend(segment);
+				
+				if (seqnum > windowSize) 
+					seqnum = 0;						
+				else 
+					seqnum ++;
+			}
+			
+			while(!queue.isEmpty())
+			{
+				System.out.println("queue not empty");
+				Thread.yield();
+			}
+			
+			//dataOut.write(0);
+			//dataOut.flush();
+		}
+			} finally { // clean up
+						timer.cancel();
+						//ar.done();
+						//receiver.join();
 						
-						// if queue is full then wait
-						while (queue.isFull()) 
-						{
-							System.out.println("queue full");
-							Thread.yield();
-						}
-						
-						this.processSend(segment);
-						
-						if (seqnum > windowSize) 
-							seqnum = 0;						
-						else 
-							seqnum ++;
-					}
-					
-					while(!queue.isEmpty())
-					{
-						System.out.println("queue not empty");
-						Thread.yield();
-					}
-					
-					dataOut.write(0);
-					dataOut.flush();
-					
-					// clean up
-					timer.cancel();
-					ar.done();
-					receiver.join();
-					
-					fIn.close();
-					dataOut.close();
-					dataIn.close();
-				} catch (Exception e) { LOGGER.log( Level.FINE, e.toString(), e); }	
-			} 	
-			System.out.println("Cleaning up");
-						
-				clientUDP.close();
-				tcpSocket.close();			
+						fIn.close();
+						dataOut.close();
+						dataIn.close();
+			  }	
 		} 
-		catch (FileNotFoundException e) {  System.out.println(e.getMessage());  } 
-		catch(IOException e) { LOGGER.log( Level.FINE, e.toString(), e); }		
-	}
+		catch (IOException e) {  System.out.println(e.getMessage());  } 
+		catch(NullPointerException e) { LOGGER.log( Level.FINE, e.toString(), e); }
+			
+}
 
 
 public synchronized void processSend(Segment seg) {
@@ -209,10 +210,11 @@ public synchronized void processSend(Segment seg) {
 
 public synchronized void processACK (Segment ack) {
 	int acknum = ack.getSeqNum();
-	System.out.println("ack: " + acknum);
+	
 	
 	if(queue.element() != null)
 	{
+		System.out.println("ack received! num: " + acknum);
 		if (ack.getSeqNum() > queue.element().getSeqNum())
 		{
 			timer.cancel();
