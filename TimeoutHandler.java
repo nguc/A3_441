@@ -4,23 +4,19 @@ import cpsc441.a3.shared.*;
 
 public class TimeoutHandler extends TimerTask {
 	
+	FastFtp mainThread;
 	TxQueue queue;
 	
-	public TimeoutHandler (TxQueue q) {
+	public TimeoutHandler (FastFtp sender, TxQueue q) {
+		this.mainThread = sender;
 		this.queue = q;
 	}
 
 	@Override
 	public void run() {
+		//System.out.println("Timer task started");
 		Segment[] pending_seg = queue.toArray();
-		
-		
+		this.mainThread.processTimeout(pending_seg);
 	}
 	
-	public synchronized void processTimeout(Segment[] pending_segs) {
-		// get the list of all pending segments from the transmission queue
-		// go through the list and send all segments to the UDP socket
-		// if there are any pending segments in transmission queue, start the timer
-		}
-
 }
