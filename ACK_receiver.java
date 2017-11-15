@@ -1,5 +1,6 @@
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
+import java.net.InetAddress;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import cpsc441.a3.shared.*;
@@ -13,12 +14,17 @@ public class ACK_receiver implements Runnable {
 	FastFtp ftp;
 	Boolean running = false;
 	
-	public ACK_receiver (FastFtp fftp, DatagramSocket socket, boolean status) {
+	public ACK_receiver (FastFtp fftp, InetAddress ip, int port, boolean status) {
 		this.ftp = fftp;
-		this.udpSocket= socket;
 		this.running = status;
-		System.out.println(udpSocket.isConnected());
+		try 
+		{
+			udpSocket = new DatagramSocket();
+			udpSocket.connect(ip, port);
+			System.out.println("ack socket " + udpSocket.isConnected());
+		} catch (Exception e) { LOGGER.log( Level.FINE, e.toString(), e); }
 	}
+	
 	
 	@Override
 	public void run() {	
@@ -33,10 +39,14 @@ public class ACK_receiver implements Runnable {
 					System.out.print(new String(replyPacket.getData()));
 					Segment ackseg = new Segment(buffer);			
 					ftp.processACK(ackseg);				
-				} catch(Exception e) {  LOGGER.log( Level.FINE, e.toString(), e); }
+				} catch(Exception e) {  LOGGER.log( Level.FINE, e.toString(), e); running = false; }
 				
 			}
 		
+	}
+	
+	public void done() {
+		this.running = false;
 	}
 
 }
