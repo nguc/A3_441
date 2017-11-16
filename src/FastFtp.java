@@ -97,20 +97,14 @@ public class FastFtp{
 				fIn = new FileInputStream(file);
 				
 				// start the receiver thread
-				//ACK_receiver ar = new ACK_receiver(this, clientUDP, true);
 				receiver = new Thread(new ACK_receiver(this, clientUDP));
 				receiver.start();
 				
 				// make segments, send segment to queue and send segment to server	
-				
-				
 				byte[] bytes = new byte[Segment.MAX_PAYLOAD_SIZE];
 				Segment segment = null;
 				int seqnum = 0;
 				int read;
-				//System.out.println("Getting ready to read file");
-				//read = fIn.read(bytes);
-				//System.out.println("bytes read: " + read);
 				
 				while ((read = this.fIn.read(bytes)) != -1) 
 				{	
@@ -123,10 +117,8 @@ public class FastFtp{
 					else 
 						segment = new Segment(seqnum, bytes);
 					
-					// if queue is full then wait
 					while (queue.isFull()) 
 					{
-						//System.out.println("queue full");
 						Thread.yield();
 					}
 					
@@ -198,9 +190,8 @@ public synchronized void processACK (Segment ack) {
 			}
 		}
 	}
-	// Queue is empty
-	else
-		System.out.println("No more elements in the queue.");
+	
+	// Else queue is empty do nothing
 }
 
 
@@ -209,6 +200,7 @@ public synchronized void processTimeout(Segment[] pending_segs) {
 	// go through the list and send all segments to the UDP socket
 	// if there are any pending segments in transmission queue, start the timer
 	int i = pending_segs.length;
+	
 	while (i > 0) 
 	{
 		byte[] bytes = pending_segs[i-1].getBytes();
@@ -216,7 +208,6 @@ public synchronized void processTimeout(Segment[] pending_segs) {
 		try
 		{
 			clientUDP.send(sendPacket);
-			//processSend(pending_segs[i]);
 			if (!this.queue.isEmpty())
 			{
 				timer = new Timer(true);

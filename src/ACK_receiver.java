@@ -12,15 +12,11 @@ public class ACK_receiver implements Runnable {
 	
 	DatagramSocket udpSocket = null;
 	FastFtp ftp;
-	//boolean running = false;
+
 	
 	public ACK_receiver (FastFtp fftp, DatagramSocket socket) {
 		this.ftp = fftp;
 		this.udpSocket = socket;
-		//this.running = status;
-		//udpSocket.connect(serverIP, serverPort);
-		//System.out.println("ack udp socket has port num:  " + udpSocket.getPort());
-		//System.out.println("ack udp socket is connected:  " + udpSocket.isConnected());
 	}
 	
 	
