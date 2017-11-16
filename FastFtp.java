@@ -28,16 +28,15 @@ public class FastFtp{
 	String PATHNAME = System.getProperty("user.dir") + "\\";
 	int rtoTimer;
 	int windowSize;
+	String fileName;
 	String hostname; // localhost
 	String serverName;
 	int serverUdpPort;
 	Socket tcpSocket;
 	DatagramSocket clientUDP;
-	InetAddress localAddress;
 	DataOutputStream dataOut;
 	DataInputStream dataIn;
 	FileInputStream fIn;
-	File file;
 	Timer timer;	
 	TxQueue queue;
 	
@@ -70,101 +69,86 @@ public class FastFtp{
      */
 	public void send(String serverName, int serverPort, String fileName) {
 		// to be completed
-	try
-	{
+		this.fileName = fileName;
 		try 
 		{
 			// Open a TCP and UDP connection
 			this.tcpSocket = new Socket (serverName, serverPort);	
-			this.file = new File(PATHNAME + fileName);			
+			this.clientUDP = new DatagramSocket(8888);
+			
+			File file = new File(fileName);		
 			long fileLength = file.length();
 			
-			if (fileLength == 0)
-			{
-				System.out.println("Empty file");
-				tcpSocket.close();
-				return;
-			}
-			else {
-			int localPortNum = tcpSocket.getLocalPort();
-			//System.out.println("The local port numb is " + localPortNum);
-			//this.clientUDP = new DatagramSocket(localPortNum);
-			this.clientUDP = new DatagramSocket();
-			System.out.println("client udp socket has port num:  " + clientUDP.getPort());
-			
+			System.out.println("file length after opening stream: " + file.length());	
 			dataOut = new DataOutputStream(tcpSocket.getOutputStream());
 			dataIn = new DataInputStream(tcpSocket.getInputStream());
-			
-			// Send filename, file length, and local UDP port to server over TCP
-			dataOut.writeUTF(fileName);
-			dataOut.flush();
-			
-			dataOut.writeLong(fileLength);
-			dataOut.flush();
-			
-			dataOut.writeInt(clientUDP.getLocalPort());
-			dataOut.flush();			
-			System.out.println("Done handshake");
-			
-			// Get server UDP port number over TCP
-			serverUdpPort = dataIn.readInt();
-			InetAddress serverIP = InetAddress.getByName(serverName);		
-			clientUDP.connect(serverIP,serverUdpPort);
-			
-			System.out.println("client udp socket " + clientUDP.isConnected());
-			System.out.println("client udp socket has port num:  " + clientUDP.getPort());
-			//int localPortNum = tcpSocket.getLocalPort();
-			//clientUDP= new DatagramSocket(serverUdpPort);
-			
-			// start the receiver thread
-			ACK_receiver ar = new ACK_receiver(this,clientUDP, true);
-			Thread receiver = new Thread(ar);
-			receiver.start();
-			
-			// make segments, send segment to queue and send segment to server	
-			fIn = new FileInputStream(this.file);
-			byte[] bytes = new byte[Segment.MAX_PAYLOAD_SIZE];
-			Segment segment = null;
-			int seqnum = 0;
-			int read;
-			
-			while ((read = fIn.read(bytes)) != -1) 
-			{	
-				System.out.println("Reading file");
-				if (read < Segment.MAX_PAYLOAD_SIZE)
-				{
-					byte[] payload = new byte[read];
-					System.arraycopy(bytes, 0, payload, 0, read);		
-					segment = new Segment(seqnum, payload);
-				}
-				else 
-					segment = new Segment(seqnum, bytes);
+		
+			try 
+			{ 
+				// Send filename, file length, and local UDP port to server over TCP
+				dataOut.writeUTF(fileName);								
+				dataOut.writeLong(fileLength);
+				dataOut.writeInt(clientUDP.getLocalPort());
+				dataOut.flush();			
+				System.out.println("Done handshake");
+					
+				// Get server UDP port number over TCP
+				serverUdpPort = dataIn.readInt();
+				System.out.println("serverport: " + serverUdpPort);
+				this.clientUDP.connect(tcpSocket.getInetAddress(), serverUdpPort);
+				fIn = new FileInputStream(file);
 				
-				// if queue is full then wait
-				while (queue.isFull()) 
+				// start the receiver thread
+				//ACK_receiver ar = new ACK_receiver(this, clientUDP, true);
+				Thread receiver = new Thread(new ACK_receiver(this, clientUDP, true));
+				receiver.start();
+				
+				// make segments, send segment to queue and send segment to server	
+				
+				
+				byte[] bytes = new byte[Segment.MAX_PAYLOAD_SIZE];
+				Segment segment = null;
+				int seqnum = 0;
+				int read;
+				System.out.println("Getting ready to read file");
+				read = fIn.read(bytes);
+				System.out.println("bytes read: " + read);
+				
+				//while ((read = this.fIn.read(bytes)) != -1) 
+				{	
+					System.out.println("Reading file");
+					if (read < Segment.MAX_PAYLOAD_SIZE)
+					{
+						byte[] payload = new byte[read];
+						System.arraycopy(bytes, 0, payload, 0, read);		
+						segment = new Segment(seqnum, payload);
+					}
+					else 
+						segment = new Segment(seqnum, bytes);
+					
+					// if queue is full then wait
+					while (queue.isFull()) 
+					{
+						//System.out.println("queue full");
+						Thread.yield();
+					}
+					
+					this.processSend(segment);
+					
+					//if (seqnum > windowSize) 
+						//seqnum = 0;						
+					//else 
+						seqnum ++;
+				}
+				
+				while(!queue.isEmpty())
 				{
-					//System.out.println("queue full");
+					System.out.println("queue not empty");
 					Thread.yield();
 				}
 				
-				this.processSend(segment);
-				
-				if (seqnum > windowSize) 
-					seqnum = 0;						
-				else 
-					seqnum ++;
-			}
-			
-			while(!queue.isEmpty())
-			{
-				System.out.println("queue not empty");
-				Thread.yield();
-			}
-			
-			//dataOut.write(0);
-			//dataOut.flush();
-		}
-			} finally { // clean up
+				System.out.println("queue empty");
+						// clean up
 						timer.cancel();
 						//ar.done();
 						//receiver.join();
@@ -172,7 +156,7 @@ public class FastFtp{
 						fIn.close();
 						dataOut.close();
 						dataIn.close();
-			  }	
+			} catch (Exception e) { LOGGER.log( Level.FINE, e.toString(), e); }
 		} 
 		catch (IOException e) {  System.out.println(e.getMessage());  } 
 		catch(NullPointerException e) { LOGGER.log( Level.FINE, e.toString(), e); }
@@ -185,20 +169,20 @@ public synchronized void processSend(Segment seg) {
 	// add seg to the transmission queue
 	// if this is the first segment in transmission queue, start the timer
 	System.out.println("Processing packet to send");
-	DatagramPacket sendPacket = new DatagramPacket(seg.getBytes(), seg.getBytes().length, localAddress, serverUdpPort);
+	DatagramPacket sendPacket = new DatagramPacket(seg.getBytes(), seg.getBytes().length);
 		try
 		{
-			queue.add(seg);
+			this.queue.add(seg);
 			clientUDP.send(sendPacket);
 				
-			if (queue.size() == 1) {
+			if (this.queue.size() == 1) {
 				timer = new Timer(true);
 				timer.schedule(new TimeoutHandler(this, this.queue) , this.rtoTimer);
 			}
 			// check what in the window
 			else
 			{
-				Segment[] window = queue.toArray();
+				Segment[] window = this.queue.toArray();
 				for (int i =0; i < window.length; i++) {System.out.println(window[i].toString());}	
 			}
 			// -------------------------- //
@@ -212,28 +196,28 @@ public synchronized void processACK (Segment ack) {
 	int acknum = ack.getSeqNum();
 	
 	
-	if(queue.element() != null)
+	if(this.queue.element() != null)
 	{
 		System.out.println("ack received! num: " + acknum);
-		if (ack.getSeqNum() > queue.element().getSeqNum())
+		if (ack.getSeqNum() > this.queue.element().getSeqNum())
 		{
 			timer.cancel();
 			while(true)
 			{
-				if(queue.element() == null)
+				if(this.queue.element() == null)
 					break;
-				if(queue.element().getSeqNum() < ack.getSeqNum())
+				if(this.queue.element().getSeqNum() < ack.getSeqNum())
 				{
 					try
 					{
-						queue.remove();
+						this.queue.remove();
 					} catch (InterruptedException e) {   LOGGER.log( Level.FINE, e.toString(), e );  }
 				}
 				else
 					break;
 			}
 			
-			if (!queue.isEmpty())
+			if (!this.queue.isEmpty())
 			{
 				timer = new Timer(true);
 				timer.schedule(new TimeoutHandler(this, this.queue) , this.rtoTimer);
@@ -255,15 +239,15 @@ public synchronized void processTimeout(Segment[] pending_segs) {
 	while (i > 0) 
 	{
 		byte[] bytes = pending_segs[i-1].getBytes();
-		DatagramPacket sendPacket = new DatagramPacket(bytes, bytes.length, localAddress, serverUdpPort);
+		DatagramPacket sendPacket = new DatagramPacket(bytes, bytes.length);
 		try
 		{
 			clientUDP.send(sendPacket);
 			//processSend(pending_segs[i]);
-			if (!queue.isEmpty())
+			if (!this.queue.isEmpty())
 			{
 				timer = new Timer(true);
-				timer.schedule(new TimeoutHandler(this, queue), rtoTimer);
+				timer.schedule(new TimeoutHandler(this, this.queue), rtoTimer);
 			}
 		} catch(IOException e){  e.printStackTrace();  }
 		  catch(IllegalArgumentException e){  e.printStackTrace(); }

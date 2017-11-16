@@ -37,19 +37,4 @@ is given by this parameter.
  
 
 Changing the Log Level
-=================
-
-Modify the file logging.properties to change the log level for the server. Specifically, 
-you can change the log level by modifying the following line in the config file:
-
-cpsc441.a3.server.level = INFO
- 
-
-For example, changing INFO to FINE will produce a lot more logging messages.
-
-
-No Software is Bug-Free!
-========================
-If you discover a critical bug in the server, let me know to fix it. 
-You should however treat the server nicely or it may crash!
- 
+======
