@@ -76,7 +76,7 @@ public class FastFtp{
 			this.tcpSocket = new Socket (serverName, serverPort);	
 			this.clientUDP = new DatagramSocket(8888);
 			
-			File file = new File(fileName);		
+			File file = new File(PATHNAME + fileName);		
 			long fileLength = file.length();
 			
 			System.out.println("file length after opening stream: " + file.length());	
@@ -110,11 +110,11 @@ public class FastFtp{
 				Segment segment = null;
 				int seqnum = 0;
 				int read;
-				System.out.println("Getting ready to read file");
-				read = fIn.read(bytes);
-				System.out.println("bytes read: " + read);
+				//System.out.println("Getting ready to read file");
+				//read = fIn.read(bytes);
+				//System.out.println("bytes read: " + read);
 				
-				//while ((read = this.fIn.read(bytes)) != -1) 
+				while ((read = this.fIn.read(bytes)) != -1) 
 				{	
 					System.out.println("Reading file");
 					if (read < Segment.MAX_PAYLOAD_SIZE)
@@ -143,7 +143,7 @@ public class FastFtp{
 				
 				while(!queue.isEmpty())
 				{
-					System.out.println("queue not empty");
+					//System.out.println("queue not empty");
 					Thread.yield();
 				}
 				
@@ -179,13 +179,13 @@ public synchronized void processSend(Segment seg) {
 				timer = new Timer(true);
 				timer.schedule(new TimeoutHandler(this, this.queue) , this.rtoTimer);
 			}
-			// check what in the window
+			/*// check what in the window
 			else
 			{
 				Segment[] window = this.queue.toArray();
 				for (int i =0; i < window.length; i++) {System.out.println(window[i].toString());}	
 			}
-			// -------------------------- //
+			// -------------------------- //*/
 			System.out.println("Sent packet");
 	} catch (Exception e) {  LOGGER.log( Level.FINE, e.toString(), e ); }
 }

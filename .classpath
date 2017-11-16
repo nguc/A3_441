@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
 	<classpathentry exported="true" kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
-	<classpathentry excluding="extra/" kind="src" path=""/>
-	<classpathentry exported="true" kind="lib" path="C:/Users/chi_n/eclipse-workspace/fast ftp/server/a3.jar"/>
-	<classpathentry kind="output" path=""/>
+	<classpathentry kind="src" path="src"/>
+	<classpathentry exported="true" kind="lib" path="server/a3.jar"/>
+	<classpathentry kind="output" path="src"/>
 </classpath>

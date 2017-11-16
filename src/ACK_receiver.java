@@ -36,8 +36,8 @@ public class ACK_receiver implements Runnable {
 				{	
 					DatagramPacket replyPacket = new DatagramPacket (buffer, buffer.length);					
 					udpSocket.receive(replyPacket);
-					System.out.println("Got ack");
-					System.out.print(new String(replyPacket.getData()));
+					//System.out.println("Got ack");
+					//System.out.print(new String(replyPacket.getData()));
 					Segment ackseg = new Segment(buffer);
 					ftp.processACK(ackseg);				
 				} catch(Exception e) {  LOGGER.log( Level.FINE, e.toString(), e); running = false; }
