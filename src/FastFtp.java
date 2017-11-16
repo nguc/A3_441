@@ -39,6 +39,7 @@ public class FastFtp{
 	FileInputStream fIn;
 	Timer timer;	
 	TxQueue queue;
+	Thread receiver;
 	
 
 	/**
@@ -78,8 +79,7 @@ public class FastFtp{
 			
 			File file = new File(PATHNAME + fileName);		
 			long fileLength = file.length();
-			
-			System.out.println("file length after opening stream: " + file.length());	
+				
 			dataOut = new DataOutputStream(tcpSocket.getOutputStream());
 			dataIn = new DataInputStream(tcpSocket.getInputStream());
 		
@@ -90,17 +90,15 @@ public class FastFtp{
 				dataOut.writeLong(fileLength);
 				dataOut.writeInt(clientUDP.getLocalPort());
 				dataOut.flush();			
-				System.out.println("Done handshake");
 					
 				// Get server UDP port number over TCP
 				serverUdpPort = dataIn.readInt();
-				System.out.println("serverport: " + serverUdpPort);
 				this.clientUDP.connect(tcpSocket.getInetAddress(), serverUdpPort);
 				fIn = new FileInputStream(file);
 				
 				// start the receiver thread
 				//ACK_receiver ar = new ACK_receiver(this, clientUDP, true);
-				Thread receiver = new Thread(new ACK_receiver(this, clientUDP, true));
+				receiver = new Thread(new ACK_receiver(this, clientUDP));
 				receiver.start();
 				
 				// make segments, send segment to queue and send segment to server	
@@ -116,7 +114,6 @@ public class FastFtp{
 				
 				while ((read = this.fIn.read(bytes)) != -1) 
 				{	
-					System.out.println("Reading file");
 					if (read < Segment.MAX_PAYLOAD_SIZE)
 					{
 						byte[] payload = new byte[read];
@@ -134,33 +131,20 @@ public class FastFtp{
 					}
 					
 					this.processSend(segment);
-					
-					//if (seqnum > windowSize) 
-						//seqnum = 0;						
-					//else 
-						seqnum ++;
+					seqnum ++;
 				}
 				
 				while(!queue.isEmpty())
 				{
-					//System.out.println("queue not empty");
 					Thread.yield();
 				}
 				
-				System.out.println("queue empty");
-						// clean up
-						timer.cancel();
-						//ar.done();
-						//receiver.join();
-						
-						fIn.close();
-						dataOut.close();
-						dataIn.close();
+				cleanUp();
+				
 			} catch (Exception e) { LOGGER.log( Level.FINE, e.toString(), e); }
 		} 
 		catch (IOException e) {  System.out.println(e.getMessage());  } 
-		catch(NullPointerException e) { LOGGER.log( Level.FINE, e.toString(), e); }
-			
+		catch(NullPointerException e) { LOGGER.log( Level.FINE, e.toString(), e); }			
 }
 
 
@@ -168,7 +152,6 @@ public synchronized void processSend(Segment seg) {
 	// send seg to the UDP socket
 	// add seg to the transmission queue
 	// if this is the first segment in transmission queue, start the timer
-	System.out.println("Processing packet to send");
 	DatagramPacket sendPacket = new DatagramPacket(seg.getBytes(), seg.getBytes().length);
 		try
 		{
@@ -179,14 +162,6 @@ public synchronized void processSend(Segment seg) {
 				timer = new Timer(true);
 				timer.schedule(new TimeoutHandler(this, this.queue) , this.rtoTimer);
 			}
-			/*// check what in the window
-			else
-			{
-				Segment[] window = this.queue.toArray();
-				for (int i =0; i < window.length; i++) {System.out.println(window[i].toString());}	
-			}
-			// -------------------------- //*/
-			System.out.println("Sent packet");
 	} catch (Exception e) {  LOGGER.log( Level.FINE, e.toString(), e ); }
 }
 
@@ -194,7 +169,6 @@ public synchronized void processSend(Segment seg) {
 
 public synchronized void processACK (Segment ack) {
 	int acknum = ack.getSeqNum();
-	
 	
 	if(this.queue.element() != null)
 	{
@@ -230,7 +204,6 @@ public synchronized void processACK (Segment ack) {
 }
 
 
-
 public synchronized void processTimeout(Segment[] pending_segs) {
 	// get the list of all pending segments from the transmission queue
 	// go through the list and send all segments to the UDP socket
@@ -256,6 +229,20 @@ public synchronized void processTimeout(Segment[] pending_segs) {
 	}
 }
 
+
+public void cleanUp() {
+	try 
+	{
+		timer.cancel();
+		receiver.interrupt();					
+		fIn.close();
+		dataOut.close();
+		dataIn.close();
+		clientUDP.close();
+		tcpSocket.close();
+	} catch (Exception e) { e.printStackTrace(); }
+	
+}
 
     /**
      * A simple test driver

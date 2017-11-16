@@ -52,4 +52,994 @@ No Software is Bug-Free!
 ========================
 If you discover a critical bug in the server, let me know to fix it. 
 You should however treat the server nicely or it may crash!
+ Stack Overflow
+Questions
+Developer Jobs
+Tags
+Users
+
  
+Log In Sign Up
+Learn, Share, Build
+Each month, over 50 million developers come to Stack Overflow to learn, share their knowledge, and build their careers.
+
+Join the world’s largest developer community.
+ Google
+ Facebook
+OR
+Display name
+
+J. Doe
+Email address
+
+you@example.com
+Password
+
+********
+ Sign Up
+By registering, you agree to the privacy policy and terms of service.
+how to stop a thread with thread interrupt method
+
+Ask Question
+up vote
+3
+down vote
+favorite
+I am trying to learn thread interrupt and how to make a thread terminate without calling stop.
+
+public class Test implements Runnable{
+        static Thread threadTest=null;
+        public static void main(String args[]){
+          System.out.println("Hello i am main thread");
+          Test thread= new Test();
+          threadTest= new Thread(thread);
+          threadTest.start();   
+}
+
+private static void exitThread() {
+    threadTest.interrupt();
+}
+
+ @Override
+ public void run() {
+    boolean run = true;
+    while (run) {
+        try {
+            System.out.println("Sleeping");
+            Thread.sleep((long) 10000);
+            exitThread();
+            System.out.println("Processing");
+
+        } catch (InterruptedException e) {
+
+            run = false;
+        }
+    }
+
+}
+
+
+}
+Output
+
+Hello i am main thread
+
+Sleeping
+
+Processing
+
+Sleeping
+I am unable to understand why Sleeping is printed second time and interrupted exception is thrown second time rather than first time.I have checked posts where volatile keyword is used to stop a thread in java.but i am unable to understand how that will be used in this scenario as thread gets stopped with interrupt.
+
+java multithreading concurrency java-threads interruption
+shareimprove this question
+edited Dec 22 '16 at 21:30
+
+Nathan Hughes
+64.4k14113176
+asked Aug 8 '15 at 15:35
+
+coder25
+51062553
+add a comment
+3 Answers
+active oldest votes
+up vote
+3
+down vote
+accepted
+In order to see the thread being interrupted instead of entering the sleep method a second time, change the while loop test in the run method to check the interrupt flag:
+
+@Override
+ public void run() {
+    while (!Thread.currentThread().isInterrupted()) {
+        try {
+            System.out.println("Sleeping");
+            Thread.sleep((long) 10000);
+            exitThread();
+            System.out.println("Processing");
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+}
+The thread will sleep, then set its own interrupt flag, then check the flag and terminate. InterruptedException would be thrown by the Thread#sleep method only if the thread was sleeping while the interrupt flag was set.
+
+Your local boolean variable is not needed. If Thread#sleep throws an InterruptedException (which it won't in this example because the thread checks the interrupted flag and leaves the while loop) then the interrupt flag is cleared, restoring it in the catch block allows the while test to see that the thread was interrupted.
+
+In real programs the thread would be interrupted from another thread, there's no reason for a thread to interrupt itself (it can just return instead).
+
+shareimprove this answer
+edited Nov 2 '15 at 22:20
+answered Aug 11 '15 at 15:25
+
+Nathan Hughes
+64.4k14113176
+add a comment
+up vote
+1
+down vote
+Calling Thread.interrupt() just sets a flag for the thread. It doesn't do anything else. Only blocking methods (those usually declare throws InterruptedException) respond to that flag being set (by throwing). The flag is sticky in that it remains set until its cleared.
+
+So the first call to the sleep method just runs normally (the interrupted flag isn't set yet). After that your code does nothing that acts on the interrupted status, until the second loop iteration where the sleep call detects the interrupted status and throws the exception.
+
+You can use Thread.interrupted() or Thread.isInterrupted() to check the interrupted status at any time (beware that interrupted() also clears the interrupted status if it was set).
+
+shareimprove this answer
+answered Aug 8 '15 at 15:51
+
+Durandal
+15.7k22454
+add a comment
+up vote
+1
+down vote
+here you creating another thread Test class but "main" has its own thread , so the new thread you created is interpreted . Here in this code you are interrupting the new created thread Thread-0 not main thread,when you execute this code you are making thread to sleep before it enters the method exitThread() ,so it is displaying the processing, but if you try to put thread sleep after you enter exitthread() you will have your answer Like in this code:
+
+public class Test implements Runnable { public boolean run = true;
+
+@Override
+public void run() {
+    while (run) {
+
+        try {
+            System.out.println("Sleeping...");
+            exitThread();
+            Thread.sleep(10000);
+            System.out.println("Processing...");
+        } catch (InterruptedException e) {
+            System.out.println("Thread intreputted " + e);
+            run = false;
+        }
+    }
+}
+
+private void exitThread() {
+    Thread.currentThread().interrupt();
+    if (Thread.currentThread().isInterrupted())
+        System.out.println(Thread.currentThread().getName()
+                + " is intreputted");
+    else
+        System.out.println("alive");
+}
+
+public static void main(String[] args) {
+    System.out.println("hi I am current thread------>"
+            + Thread.currentThread().getName());
+    Test test = new Test();
+    Thread thread = new Thread(test);
+    thread.start();
+}
+}
+
+Hope it will be helpfull
+
+shareimprove this answer
+answered Sep 4 '15 at 17:37
+
+emotionlessbananas
+76611024
+add a comment
+Your Answer
+
+
+ 
+Sign up or log in
+
+Sign up using Google
+Sign up using Facebook
+Sign up using Email and Password
+ 
+Post as a guest
+
+Name
+
+Email
+
+required, but never shown
+ Post Your Answer
+By posting your answer, you agree to the privacy policy and terms of service.
+
+Not the answer you're looking for? Browse other questions tagged java multithreading concurrency java-threads interruption or ask your own question.
+
+asked
+
+2 years, 3 months ago
+
+viewed
+
+3,479 times
+
+active
+
+10 months ago
+
+BLOG
+Podcast # 121 – Another Ducking Episode
+The Cliffs of Insanity: Dramatic Shifts in Technologies on Stack Overflow
+Solium
+Solium
+Financial Services
+We have great benefits!
+Professional Development - Learn, grow & progress
+Annual Stock Option Program
+Diverse and inclusive team
+Employer match of 50% on Share Purchase Plan
++ 3 more benefits
+Learn more
+LoyaltyOne
+LoyaltyOne
+Big Data
+Data Developer
+Calgary, AB, Canada
+java
+cloud
+DevOps Engineer
+Calgary, AB, Canada
+python
+cloud
+Senior Developer
+Calgary, AB, Canada
+java
+javascript
+View all 8 job openings!
+Related
+
+2042
+How do I test a class that has private methods, fields or inner classes?
+1031
+What is the difference between a process and a thread?
+1582
+“implements Runnable” vs. “extends Thread”
+1033
+How do I update the GUI from another thread in C#?
+715
+When and how should I use a ThreadLocal variable?
+772
+How to use threading in Python?
+63
+Are static variables shared between threads?
+5
+Interrupt a sleeping thread
+0
+Interrupting a normally running thread in java
+4
+ExecutorService workStealingPool and cancel method
+Hot Network Questions
+
+Repeat command until it succeeds?
+How would the lifts work on a space station which worries about hull breaches?
+Fill area between wave-lines
+Why didn't Vader do anything since he is expecting that he is becoming redundant?
+Which pitfalls should I watch out for when meeting my half-brother who hasn't been aware of my existence for 25 years?
+How do I tell my teammate to stop replying to emails not addressed to him?
+What specific difficult choices can only Batman make?
+Why does NULL count as 4 characters in Apex?
+Motor enclosure top lid has electric spring
+Why drain soaked rice?
+No questions during UK visit visa interview & biometric at VAC Malaysia. Normal or not?
+Constructive algebraic geometry
+if 2 random variables have exactly same mean and variance
+Engine not starting after melted Ignition Coil
+Can I safely eat grass?
+Hardware token vs Fingerprint based software token
+Dealing with / extricating yourself from having to listen to a superior's xenophobic rants
+Why do drugs expire?
+Does a Fighter's Action Surge stack with the Haste action?
+Does human body temperature impact climate change?
+Why is being "on hold" on the telephone not made less annoying?
+How should I connect 7 devices to a switch module with four ethernet interfaces? Is there a preferred topology?
+Ignore accents in 'where'
+How can I convince my DM that my diplomacy will work on his characters?
+ question feed
+STACK OVERFLOW
+
+Questions
+Jobs
+Developer Jobs Directory
+Salary Calculator
+Help
+Mobile
+STACK OVERFLOW BUSINESS
+
+Talent
+Ads
+Enterprise
+Insights
+COMPANY
+
+About
+Press
+Work Here
+Legal
+Privacy PolicyStack Overflow
+Questions
+Developer Jobs
+Tags
+Users
+
+ 
+Log In Sign Up
+Learn, Share, Build
+Each month, over 50 million developers come to Stack Overflow to learn, share their knowledge, and build their careers.
+
+Join the world’s largest developer community.
+ Google
+ Facebook
+OR
+Display name
+
+J. Doe
+Email address
+
+you@example.com
+Password
+
+********
+ Sign Up
+By registering, you agree to the privacy policy and terms of service.
+how to stop a thread with thread interrupt method
+
+Ask Question
+up vote
+3
+down vote
+favorite
+I am trying to learn thread interrupt and how to make a thread terminate without calling stop.
+
+public class Test implements Runnable{
+        static Thread threadTest=null;
+        public static void main(String args[]){
+          System.out.println("Hello i am main thread");
+          Test thread= new Test();
+          threadTest= new Thread(thread);
+          threadTest.start();   
+}
+
+private static void exitThread() {
+    threadTest.interrupt();
+}
+
+ @Override
+ public void run() {
+    boolean run = true;
+    while (run) {
+        try {
+            System.out.println("Sleeping");
+            Thread.sleep((long) 10000);
+            exitThread();
+            System.out.println("Processing");
+
+        } catch (InterruptedException e) {
+
+            run = false;
+        }
+    }
+
+}
+
+
+}
+Output
+
+Hello i am main thread
+
+Sleeping
+
+Processing
+
+Sleeping
+I am unable to understand why Sleeping is printed second time and interrupted exception is thrown second time rather than first time.I have checked posts where volatile keyword is used to stop a thread in java.but i am unable to understand how that will be used in this scenario as thread gets stopped with interrupt.
+
+java multithreading concurrency java-threads interruption
+shareimprove this question
+edited Dec 22 '16 at 21:30
+
+Nathan Hughes
+64.4k14113176
+asked Aug 8 '15 at 15:35
+
+coder25
+51062553
+add a comment
+3 Answers
+active oldest votes
+up vote
+3
+down vote
+accepted
+In order to see the thread being interrupted instead of entering the sleep method a second time, change the while loop test in the run method to check the interrupt flag:
+
+@Override
+ public void run() {
+    while (!Thread.currentThread().isInterrupted()) {
+        try {
+            System.out.println("Sleeping");
+            Thread.sleep((long) 10000);
+            exitThread();
+            System.out.println("Processing");
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+}
+The thread will sleep, then set its own interrupt flag, then check the flag and terminate. InterruptedException would be thrown by the Thread#sleep method only if the thread was sleeping while the interrupt flag was set.
+
+Your local boolean variable is not needed. If Thread#sleep throws an InterruptedException (which it won't in this example because the thread checks the interrupted flag and leaves the while loop) then the interrupt flag is cleared, restoring it in the catch block allows the while test to see that the thread was interrupted.
+
+In real programs the thread would be interrupted from another thread, there's no reason for a thread to interrupt itself (it can just return instead).
+
+shareimprove this answer
+edited Nov 2 '15 at 22:20
+answered Aug 11 '15 at 15:25
+
+Nathan Hughes
+64.4k14113176
+add a comment
+up vote
+1
+down vote
+Calling Thread.interrupt() just sets a flag for the thread. It doesn't do anything else. Only blocking methods (those usually declare throws InterruptedException) respond to that flag being set (by throwing). The flag is sticky in that it remains set until its cleared.
+
+So the first call to the sleep method just runs normally (the interrupted flag isn't set yet). After that your code does nothing that acts on the interrupted status, until the second loop iteration where the sleep call detects the interrupted status and throws the exception.
+
+You can use Thread.interrupted() or Thread.isInterrupted() to check the interrupted status at any time (beware that interrupted() also clears the interrupted status if it was set).
+
+shareimprove this answer
+answered Aug 8 '15 at 15:51
+
+Durandal
+15.7k22454
+add a comment
+up vote
+1
+down vote
+here you creating another thread Test class but "main" has its own thread , so the new thread you created is interpreted . Here in this code you are interrupting the new created thread Thread-0 not main thread,when you execute this code you are making thread to sleep before it enters the method exitThread() ,so it is displaying the processing, but if you try to put thread sleep after you enter exitthread() you will have your answer Like in this code:
+
+public class Test implements Runnable { public boolean run = true;
+
+@Override
+public void run() {
+    while (run) {
+
+        try {
+            System.out.println("Sleeping...");
+            exitThread();
+            Thread.sleep(10000);
+            System.out.println("Processing...");
+        } catch (InterruptedException e) {
+            System.out.println("Thread intreputted " + e);
+            run = false;
+        }
+    }
+}
+
+private void exitThread() {
+    Thread.currentThread().interrupt();
+    if (Thread.currentThread().isInterrupted())
+        System.out.println(Thread.currentThread().getName()
+                + " is intreputted");
+    else
+        System.out.println("alive");
+}
+
+public static void main(String[] args) {
+    System.out.println("hi I am current thread------>"
+            + Thread.currentThread().getName());
+    Test test = new Test();
+    Thread thread = new Thread(test);
+    thread.start();
+}
+}
+
+Hope it will be helpfull
+
+shareimprove this answer
+answered Sep 4 '15 at 17:37
+
+emotionlessbananas
+76611024
+add a comment
+Your Answer
+
+
+ 
+Sign up or log in
+
+Sign up using Google
+Sign up using Facebook
+Sign up using Email and Password
+ 
+Post as a guest
+
+Name
+
+Email
+
+required, but never shown
+ Post Your Answer
+By posting your answer, you agree to the privacy policy and terms of service.
+
+Not the answer you're looking for? Browse other questions tagged java multithreading concurrency java-threads interruption or ask your own question.
+
+asked
+
+2 years, 3 months ago
+
+viewed
+
+3,479 times
+
+active
+
+10 months ago
+
+BLOG
+Podcast # 121 – Another Ducking Episode
+The Cliffs of Insanity: Dramatic Shifts in Technologies on Stack Overflow
+Solium
+Solium
+Financial Services
+We have great benefits!
+Professional Development - Learn, grow & progress
+Annual Stock Option Program
+Diverse and inclusive team
+Employer match of 50% on Share Purchase Plan
++ 3 more benefits
+Learn more
+LoyaltyOne
+LoyaltyOne
+Big Data
+Data Developer
+Calgary, AB, Canada
+java
+cloud
+DevOps Engineer
+Calgary, AB, Canada
+python
+cloud
+Senior Developer
+Calgary, AB, Canada
+java
+javascript
+View all 8 job openings!
+Related
+
+2042
+How do I test a class that has private methods, fields or inner classes?
+1031
+What is the difference between a process and a thread?
+1582
+“implements Runnable” vs. “extends Thread”
+1033
+How do I update the GUI from another thread in C#?
+715
+When and how should I use a ThreadLocal variable?
+772
+How to use threading in Python?
+63
+Are static variables shared between threads?
+5
+Interrupt a sleeping thread
+0
+Interrupting a normally running thread in java
+4
+ExecutorService workStealingPool and cancel method
+Hot Network Questions
+
+Repeat command until it succeeds?
+How would the lifts work on a space station which worries about hull breaches?
+Fill area between wave-lines
+Why didn't Vader do anything since he is expecting that he is becoming redundant?
+Which pitfalls should I watch out for when meeting my half-brother who hasn't been aware of my existence for 25 years?
+How do I tell my teammate to stop replying to emails not addressed to him?
+What specific difficult choices can only Batman make?
+Why does NULL count as 4 characters in Apex?
+Motor enclosure top lid has electric spring
+Why drain soaked rice?
+No questions during UK visit visa interview & biometric at VAC Malaysia. Normal or not?
+Constructive algebraic geometry
+if 2 random variables have exactly same mean and variance
+Engine not starting after melted Ignition Coil
+Can I safely eat grass?
+Hardware token vs Fingerprint based software token
+Dealing with / extricating yourself from having to listen to a superior's xenophobic rants
+Why do drugs expire?
+Does a Fighter's Action Surge stack with the Haste action?
+Does human body temperature impact climate change?
+Why is being "on hold" on the telephone not made less annoying?
+How should I connect 7 devices to a switch module with four ethernet interfaces? Is there a preferred topology?
+Ignore accents in 'where'
+How can I convince my DM that my diplomacy will work on his characters?
+ question feed
+STACK OVERFLOW
+
+Questions
+Jobs
+Developer Jobs Directory
+Salary Calculator
+Help
+Mobile
+STACK OVERFLOW BUSINESS
+
+Talent
+Ads
+Enterprise
+InsightsStack Overflow
+Questions
+Developer Jobs
+Tags
+Users
+
+ 
+Log In Sign Up
+Learn, Share, Build
+Each month, over 50 million developers come to Stack Overflow to learn, share their knowledge, and build their careers.
+
+Join the world’s largest developer community.
+ Google
+ Facebook
+OR
+Display name
+
+J. Doe
+Email address
+
+you@example.com
+Password
+
+********
+ Sign Up
+By registering, you agree to the privacy policy and terms of service.
+how to stop a thread with thread interrupt method
+
+Ask Question
+up vote
+3
+down vote
+favorite
+I am trying to learn thread interrupt and how to make a thread terminate without calling stop.
+
+public class Test implements Runnable{
+        static Thread threadTest=null;
+        public static void main(String args[]){
+          System.out.println("Hello i am main thread");
+          Test thread= new Test();
+          threadTest= new Thread(thread);
+          threadTest.start();   
+}
+
+private static void exitThread() {
+    threadTest.interrupt();
+}
+
+ @Override
+ public void run() {
+    boolean run = true;
+    while (run) {
+        try {
+            System.out.println("Sleeping");
+            Thread.sleep((long) 10000);
+            exitThread();
+            System.out.println("Processing");
+
+        } catch (InterruptedException e) {
+
+            run = false;
+        }
+    }
+
+}
+
+
+}
+Output
+
+Hello i am main thread
+
+Sleeping
+
+Processing
+
+Sleeping
+I am unable to understand why Sleeping is printed second time and interrupted exception is thrown second time rather than first time.I have checked posts where volatile keyword is used to stop a thread in java.but i am unable to understand how that will be used in this scenario as thread gets stopped with interrupt.
+
+java multithreading concurrency java-threads interruption
+shareimprove this question
+edited Dec 22 '16 at 21:30
+
+Nathan Hughes
+64.4k14113176
+asked Aug 8 '15 at 15:35
+
+coder25
+51062553
+add a comment
+3 Answers
+active oldest votes
+up vote
+3
+down vote
+accepted
+In order to see the thread being interrupted instead of entering the sleep method a second time, change the while loop test in the run method to check the interrupt flag:
+
+@Override
+ public void run() {
+    while (!Thread.currentThread().isInterrupted()) {
+        try {
+            System.out.println("Sleeping");
+            Thread.sleep((long) 10000);
+            exitThread();
+            System.out.println("Processing");
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+}
+The thread will sleep, then set its own interrupt flag, then check the flag and terminate. InterruptedException would be thrown by the Thread#sleep method only if the thread was sleeping while the interrupt flag was set.
+
+Your local boolean variable is not needed. If Thread#sleep throws an InterruptedException (which it won't in this example because the thread checks the interrupted flag and leaves the while loop) then the interrupt flag is cleared, restoring it in the catch block allows the while test to see that the thread was interrupted.
+
+In real programs the thread would be interrupted from another thread, there's no reason for a thread to interrupt itself (it can just return instead).
+
+shareimprove this answer
+edited Nov 2 '15 at 22:20
+answered Aug 11 '15 at 15:25
+
+Nathan Hughes
+64.4k14113176
+add a comment
+up vote
+1
+down vote
+Calling Thread.interrupt() just sets a flag for the thread. It doesn't do anything else. Only blocking methods (those usually declare throws InterruptedException) respond to that flag being set (by throwing). The flag is sticky in that it remains set until its cleared.
+
+So the first call to the sleep method just runs normally (the interrupted flag isn't set yet). After that your code does nothing that acts on the interrupted status, until the second loop iteration where the sleep call detects the interrupted status and throws the exception.
+
+You can use Thread.interrupted() or Thread.isInterrupted() to check the interrupted status at any time (beware that interrupted() also clears the interrupted status if it was set).
+
+shareimprove this answer
+answered Aug 8 '15 at 15:51
+
+Durandal
+15.7k22454
+add a comment
+up vote
+1
+down vote
+here you creating another thread Test class but "main" has its own thread , so the new thread you created is interpreted . Here in this code you are interrupting the new created thread Thread-0 not main thread,when you execute this code you are making thread to sleep before it enters the method exitThread() ,so it is displaying the processing, but if you try to put thread sleep after you enter exitthread() you will have your answer Like in this code:
+
+public class Test implements Runnable { public boolean run = true;
+
+@Override
+public void run() {
+    while (run) {
+
+        try {
+            System.out.println("Sleeping...");
+            exitThread();
+            Thread.sleep(10000);
+            System.out.println("Processing...");
+        } catch (InterruptedException e) {
+            System.out.println("Thread intreputted " + e);
+            run = false;
+        }
+    }
+}
+
+private void exitThread() {
+    Thread.currentThread().interrupt();
+    if (Thread.currentThread().isInterrupted())
+        System.out.println(Thread.currentThread().getName()
+                + " is intreputted");
+    else
+        System.out.println("alive");
+}
+
+public static void main(String[] args) {
+    System.out.println("hi I am current thread------>"
+            + Thread.currentThread().getName());
+    Test test = new Test();
+    Thread thread = new Thread(test);
+    thread.start();
+}
+}
+
+Hope it will be helpfull
+
+shareimprove this answer
+answered Sep 4 '15 at 17:37
+
+emotionlessbananas
+76611024
+add a comment
+Your Answer
+
+
+ 
+Sign up or log in
+
+Sign up using Google
+Sign up using Facebook
+Sign up using Email and Password
+ 
+Post as a guest
+
+Name
+
+Email
+
+required, but never shown
+ Post Your Answer
+By posting your answer, you agree to the privacy policy and terms of service.
+
+Not the answer you're looking for? Browse other questions tagged java multithreading concurrency java-threads interruption or ask your own question.
+
+asked
+
+2 years, 3 months ago
+
+viewed
+
+3,479 times
+
+active
+
+10 months ago
+
+BLOG
+Podcast # 121 – Another Ducking Episode
+The Cliffs of Insanity: Dramatic Shifts in Technologies on Stack Overflow
+Solium
+Solium
+Financial Services
+We have great benefits!
+Professional Development - Learn, grow & progress
+Annual Stock Option Program
+Diverse and inclusive team
+Employer match of 50% on Share Purchase Plan
++ 3 more benefits
+Learn more
+LoyaltyOne
+LoyaltyOne
+Big Data
+Data Developer
+Calgary, AB, Canada
+java
+cloud
+DevOps Engineer
+Calgary, AB, Canada
+python
+cloud
+Senior Developer
+Calgary, AB, Canada
+java
+javascript
+View all 8 job openings!
+Related
+
+2042
+How do I test a class that has private methods, fields or inner classes?
+1031
+What is the difference between a process and a thread?
+1582
+“implements Runnable” vs. “extends Thread”
+1033
+How do I update the GUI from another thread in C#?
+715
+When and how should I use a ThreadLocal variable?
+772
+How to use threading in Python?
+63
+Are static variables shared between threads?
+5
+Interrupt a sleeping thread
+0
+Interrupting a normally running thread in java
+4
+ExecutorService workStealingPool and cancel method
+Hot Network Questions
+
+Repeat command until it succeeds?
+How would the lifts work on a space station which worries about hull breaches?
+Fill area between wave-lines
+Why didn't Vader do anything since he is expecting that he is becoming redundant?
+Which pitfalls should I watch out for when meeting my half-brother who hasn't been aware of my existence for 25 years?
+How do I tell my teammate to stop replying to emails not addressed to him?
+What specific difficult choices can only Batman make?
+Why does NULL count as 4 characters in Apex?
+Motor enclosure top lid has electric spring
+Why drain soaked rice?
+No questions during UK visit visa interview & biometric at VAC Malaysia. Normal or not?
+Constructive algebraic geometry
+if 2 random variables have exactly same mean and variance
+Engine not starting after melted Ignition Coil
+Can I safely eat grass?
+Hardware token vs Fingerprint based software token
+Dealing with / extricating yourself from having to listen to a superior's xenophobic rants
+Why do drugs expire?
+Does a Fighter's Action Surge stack with the Haste action?
+Does human body temperature impact climate change?
+Why is being "on hold" on the telephone not made less annoying?
+How should I connect 7 devices to a switch module with four ethernet interfaces? Is there a preferred topology?
+Ignore accents in 'where'
+How can I convince my DM that my diplomacy will work on his characters?
+ question feed
+STACK OVERFLOW
+
+Questions
+Jobs
+Developer Jobs Directory
+Salary Calculator
+Help
+Mobile
+STACK OVERFLOW BUSINESS
+
+Talent
+Ads
+Enterprise
+Insights
+COMPANY
+
+About
+Press
+Work Here
+Legal
+Privacy Policy
+Contact Us
+STACK EXCHANGE NETWORK
+
+Technology
+Life / Arts
+Culture / Recreation
+Science
+Other
+Blog Facebook Twitter LinkedIn
+site design / logo © 2017 Stack Exchange Inc; user contributions licensed under cc by-sa 3.0 with attribution required. rev 2017.11.15.27748
+COMPANY
+
+About
+Press
+Work Here
+Legal
+Privacy Policy
+Contact Us
+STACK EXCHANGE NETWORK
+
+Technology
+Life / Arts
+Culture / Recreation
+Science
+Other
+Blog Facebook Twitter LinkedIn
+site design / logo © 2017 Stack Exchange Inc; user contributions licensed under cc by-sa 3.0 with attribution required. rev 2017.11.15.27748
+Contact Us
+STACK EXCHANGE NETWORK
+
+Technology
+Life / Arts
+Culture / Recreation
+Science
+Other
+Blog Facebook Twitter LinkedIn
+site design / logo © 2017 Stack Exchange Inc; user contributions licensed under cc by-sa 3.0 with attribution required. rev 2017.11.15.27748
